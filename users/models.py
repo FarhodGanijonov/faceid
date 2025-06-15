@@ -50,6 +50,7 @@ class AbstractUser(AbstractBaseUser, PermissionsMixin):
     passport_back_scan = models.ImageField(upload_to='passport_back_scan', blank=True, null=True)
     passport_scan_with_face = models.ImageField(upload_to='passport_scan_with_face', blank=True, null=True)
     passport_seria = models.CharField(max_length=50, blank=True, null=True)
+    temp_passport = models.ImageField(upload_to='temp/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     #  Django admin ishlashi uchun majburiy maydonlar:

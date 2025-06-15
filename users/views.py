@@ -1,9 +1,12 @@
+import os
+
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
-from .serializers import FaceCompareSerializer, FaceCompareResponseSerializer, UserPasswordChangeSerializer, \
-    UserRegistrationSerializer, UserLoginSerializer
+from .serializers import UserPasswordChangeSerializer, \
+    UserRegistrationSerializer, UserLoginSerializer, UploadPassportSerializer, UploadFaceSerializer, \
+    FaceCompareResponseSerializer
 from .models import FaceComparison, AbstractUser
 import face_recognition
 import numpy as np
@@ -14,44 +17,57 @@ from pillow_heif import register_heif_opener
 from rest_framework_simplejwt.tokens import RefreshToken
 register_heif_opener()
 
-
 def resize_image(image, max_size=800):
     image.thumbnail((max_size, max_size), Image.LANCZOS)
     return image
 
-
-class FaceCompareAPIView(APIView):
-    permission_classes = [IsAuthenticated]  # optional, lekin yaxshi
+class UploadPassportAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-
-        if not request.user or not request.user.is_authenticated:
-            return Response({"detail": "Foydalanuvchi login qilmagan."}, status=status.HTTP_401_UNAUTHORIZED)
-
-        serializer = FaceCompareSerializer(data=request.data)
+        serializer = UploadPassportSerializer(data=request.data)
         if serializer.is_valid():
             passport_file = serializer.validated_data['passport_image']
+
+            # Save to temp_passport field
+            request.user.temp_passport = passport_file
+            request.user.save()
+
+            return Response({"message": "Pasport rasmi vaqtincha saqlandi"}, status=200)
+        return Response(serializer.errors, status=400)
+
+
+class CompareFaceAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = UploadFaceSerializer(data=request.data)
+        if serializer.is_valid():
             face_file = serializer.validated_data['face_image']
+            passport_file = request.user.temp_passport
+
+            if not passport_file:
+                return Response({"error": "Passport rasmi hali yuborilmagan"}, status=400)
 
             result = self.compare_faces(passport_file, face_file)
 
             if result is None:
-                return Response(
-                    {"error": "Yuz topilmadi yoki noto‘g‘ri rasm formati"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({"error": "Yuz aniqlanmadi"}, status=400)
 
             match = result
 
-            # Fayllarni ContentFile tarzida saqlash
+            # Fayllarni saqlash
             passport_io = BytesIO()
             face_io = BytesIO()
-            Image.open(passport_file).save(passport_io, format='JPEG')
-            Image.open(face_file).save(face_io, format='JPEG')
+
+            with Image.open(passport_file) as passport_img:
+                passport_img.save(passport_io, format='JPEG')
+
+            with Image.open(face_file) as face_img:
+                face_img.save(face_io, format='JPEG')
 
             passport_content = ContentFile(passport_io.getvalue(), 'passport.jpg')
             face_content = ContentFile(face_io.getvalue(), 'face.jpg')
-
 
             comparison = FaceComparison.objects.create(
                 user=request.user,
@@ -60,23 +76,30 @@ class FaceCompareAPIView(APIView):
                 match_result=match
             )
 
-            response_serializer = FaceCompareResponseSerializer(comparison, context={'request': request})
-            if match:
-                return Response({"message": "Ikkala yuz bir odamga tegishli!", "data": response_serializer.data})
-            else:
-                return Response({"error": "Bu boshqa odam yoki boshqattan urinib ko‘ring!", "data": response_serializer.data}, status=status.HTTP_400_BAD_REQUEST)
+            # if request.user.temp_passport and os.path.isfile(request.user.temp_passport.path):
+            #     try:
+            #         os.remove(request.user.temp_passport.path)
+            #     except Exception as e:
+            #         print(f"Temp faylni o‘chirishda xatolik: {e}")
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            request.user.temp_passport = None
+            request.user.save()
+
+            response_serializer = FaceCompareResponseSerializer(comparison, context={"request": request})
+            return Response(response_serializer.data, status=200 if match else 400)
+
+        return Response(serializer.errors, status=400)
 
     def compare_faces(self, passport_file, face_file):
         try:
-            passport_img = resize_image(Image.open(passport_file))
-            face_img = resize_image(Image.open(face_file))
+            with Image.open(passport_file) as passport_img:
+                passport_img = resize_image(passport_img)
+                passport_array = np.array(passport_img)
 
-            passport_array = np.array(passport_img)
-            face_array = np.array(face_img)
+            with Image.open(face_file) as face_img:
+                face_img = resize_image(face_img)
+                face_array = np.array(face_img)
 
-            # faqat HOG modeli
             passport_locations = face_recognition.face_locations(passport_array, model='hog')
             face_locations = face_recognition.face_locations(face_array, model='hog')
 
@@ -91,9 +114,12 @@ class FaceCompareAPIView(APIView):
 
             match = face_recognition.compare_faces([passport_enc[0]], face_enc[0])[0]
             return match
+
         except Exception as e:
             print("Face comparison error:", e)
             return None
+
+
 
 
 class UserRegistrationView(generics.CreateAPIView):

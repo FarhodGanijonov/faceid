@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import FaceCompareAPIView, UserRegistrationView, UserLoginView, UserPasswordChangeView
+from .views import UserRegistrationView, UserLoginView, UserPasswordChangeView, \
+    UploadPassportAPIView, CompareFaceAPIView
 from .views import (
     UpdateContactView,
     ProfileUpdateView,
@@ -12,7 +13,8 @@ urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='user-register'),
     path('login/', UserLoginView.as_view(), name='user-login'),
     path('change-password/', UserPasswordChangeView.as_view(), name='user-change-password'),
-    path('face-compare/', FaceCompareAPIView.as_view(), name='face-compare'),
+    path('upload-passport/', UploadPassportAPIView.as_view(), name='upload-passport'),
+    path('upload-face/', CompareFaceAPIView.as_view(), name='compare-face'),
 
 
     path('profile/contact/update/', UpdateContactView.as_view(), name='contact-update'),       # POST

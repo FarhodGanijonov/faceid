@@ -9,7 +9,7 @@ from.models import AbstractUser
 @admin.register(AbstractUser)
 class UserAdmin(BaseUserAdmin):
     model = AbstractUser
-    list_display = ('id', 'full_name', 'phone', 'role', 'is_active', 'is_staff')
+    list_display = ('id', 'full_name', 'phone', 'role', 'is_active', 'is_staff', 'temp_passport')
     list_filter = ('role', 'is_active', 'is_staff')
     search_fields = ('full_name', 'phone')
     ordering = ('-created_at',)
@@ -20,7 +20,7 @@ class UserAdmin(BaseUserAdmin):
             'fields': (
                 'full_name', 'role', 'gmail', 'telegram', 'image',
                 'passport_scan', 'passport_back_scan', 'passport_scan_with_face',
-                'passport_seria'
+                'passport_seria', 'temp_passport'
             )
         }),
         (_('Ruxsatlar'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),

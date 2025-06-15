@@ -66,19 +66,30 @@ class UserPasswordChangeSerializer(serializers.Serializer):
         user.save()
         return user
 
-class FaceCompareSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FaceComparison
-        fields = ['passport_image', 'face_image']  # Endi 2 ta rasm keladi
+
+
+class UploadPassportSerializer(serializers.Serializer):
+    passport_image = serializers.ImageField()
+
+class UploadFaceSerializer(serializers.Serializer):
+    face_image = serializers.ImageField()
+
+
+# class FaceCompareSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = FaceComparison
+#         fields = ['passport_image', 'face_image']  # Endi 2 ta rasm keladi
 
 
 class FaceCompareResponseSerializer(serializers.ModelSerializer):
     passport_image = serializers.SerializerMethodField()
     face_image = serializers.SerializerMethodField()
+    message = serializers.SerializerMethodField()
+
 
     class Meta:
         model = FaceComparison
-        fields = ['id', 'passport_image', 'face_image', 'match_result', 'created_at']
+        fields = ['id', 'passport_image', 'face_image', 'match_result', 'message', 'created_at',]
 
     def get_passport_image(self, obj):
         request = self.context.get('request')
@@ -91,6 +102,12 @@ class FaceCompareResponseSerializer(serializers.ModelSerializer):
         if obj.face_image and hasattr(obj.face_image, 'url'):
             return request.build_absolute_uri(obj.face_image.url)
         return None
+
+    def get_message(self, obj):
+        if obj.match_result:  # Bu True yoki 1 bo‘lsa ham ishlaydi
+            return "Ikkala rasm bir odamga tegishli!"
+        else:
+            return "Bu boshqa odam bo‘lishi mumkin."
 
 
 class UserContactSerializer(serializers.ModelSerializer):
